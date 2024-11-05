@@ -23,19 +23,23 @@ const program = Effect.flatMap(
           );
       }
 
-      const params = yield* client.getISConfig();
-
       const token = yield* storage.getToken();
       if (token) {
-        const isValid = yield* client.isTokenValid(token, params);
+        const isValid = yield* client
+          .getISConfig()
+          .pipe(Effect.andThen(conf => client.isTokenValid(token, conf)));
+
         if (isValid) {
           return token;
         }
       }
       yield* client
         .getRedirectUrl()
-        .pipe(Effect.flatMap(storage.setRedirectUrl));
-      yield* client.authorize();
+        .pipe(
+          Effect.andThen(storage.setRedirectUrl),
+          Effect.andThen(client.getISConfig),
+          Effect.andThen(client.authorize),
+        );
 
       return null;
     }).pipe(
@@ -43,7 +47,6 @@ const program = Effect.flatMap(
         Effect.gen(function* () {
           if (token) {
             const payload = yield* parser.parseTokenToPayload(token);
-
             return {
               token,
               payload,

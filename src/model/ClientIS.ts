@@ -14,7 +14,9 @@ interface ClientISImpl {
   getISConfig: () => Effect.Effect<ConfigurationType, ClientISError, never>;
   isSignInUrl: () => Effect.Effect<boolean, never, never>;
   toRedirectUrl: () => Effect.Effect<void, never, never>;
-  authorize: () => Effect.Effect<void, RangeError, never>;
+  authorize: (
+    config: ConfigurationType,
+  ) => Effect.Effect<void, RangeError, never>;
   getRedirectUrl: () => Effect.Effect<string, never, never>;
   isTokenValid: (
     token: string,
@@ -30,51 +32,53 @@ export class ClientIS extends Context.Tag('ClientIS')<
     this,
     Effect.map(
       Effect.all([Query, SideEffects, Config, Storage, Random]),
-      ([query, sideEffects, config, storage, random]) => ({
+      ([query, sideEffects, appConfig, storage, random]) => ({
         getRedirectUrl() {
           const loc = sideEffects.getLocation();
 
           return Effect.succeed(`${loc.pathname}${loc.search}${loc.hash}`);
         },
         toRedirectUrl: () =>
-          Effect.sync(() => {
-            const url = storage.getRedirectUrl();
-            const loc = sideEffects.getLocation();
+          Effect.gen(function* () {
+            const url = yield* storage.getRedirectUrl();
+
             if (url) {
-              // @ts-ignore
-              loc.href = url;
+              sideEffects.history.push(url);
             }
           }),
-        authorize: () =>
+        authorize: config =>
           Effect.gen(function* () {
             const loc = sideEffects.getLocation();
-            const redirectUri = `${loc.origin}/${config.signInUri}`;
+            const redirectUri = `${loc.origin}/${appConfig.signInUri}`;
             const state = yield* random.get();
             const nonce = yield* random.get();
 
             // eslint-disable-next-line max-len
-            const url = `${config.host}?client_id=${config.client}&redirect_uri=${redirectUri}&response_type=id_token token&scope=openid profile email&state=${state}&nonce=${nonce}`;
+            const url = `${config.authorization_endpoint}?client_id=${appConfig.client}&redirect_uri=${redirectUri}&response_type=id_token token&scope=openid profile email&state=${state}&nonce=${nonce}`;
             loc.href = url;
           }),
         isSignInUrl: () => {
           return Effect.succeed(
-            sideEffects.getLocation().href.includes(config.signInUri),
+            sideEffects.getLocation().href.includes(appConfig.signInUri),
           );
         },
         getISConfig: () =>
-          query.get('/.well-known/openid-configuration').pipe(
-            Effect.mapError(
-              () =>
-                new ClientISError({
-                  message: 'Не удалось получить конфигурацию IS',
-                }),
+          query
+            .get<ConfigurationType>(
+              `${appConfig.host}/.well-known/openid-configuration`,
+            )
+            .pipe(
+              Effect.mapError(
+                () =>
+                  new ClientISError({
+                    message: 'Не удалось получить конфигурацию IS',
+                  }),
+              ),
             ),
-            Effect.map(d => d as ConfigurationType),
-          ),
 
         isTokenValid(token, configIS) {
           return query
-            .get(`${config.host}/${configIS.userinfo_endpoint}`, {
+            .get(`${configIS.userinfo_endpoint}`, {
               Authorization: `Bearer ${token}`,
             })
             .pipe(

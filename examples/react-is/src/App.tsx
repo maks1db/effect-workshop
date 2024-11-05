@@ -30,8 +30,11 @@ function App() {
       }),
       Effect.provideService(SideEffects, {
         getLocation: () => window.location,
-        getPrimaryStorage: () => window.localStorage,
-        getTemporaryStorage: () => window.sessionStorage
+        getPrimaryStorage: () => window.sessionStorage,
+        getTemporaryStorage: () => window.sessionStorage,
+        history: {
+          push: (path) => window.history.pushState('', '', path)
+        }
       })
     );
 
@@ -58,7 +61,7 @@ function App() {
       {token && <p className="read-the-docs">
         {token}
       </p>}
-      {error && <p className="read-the-docs">
+      {error && <p className="read-the-docs error">
         {error}
       </p>}
     </>

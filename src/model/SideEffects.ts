@@ -4,6 +4,9 @@ interface SideEffectsImpl {
   getLocation: () => ModelLocation;
   getPrimaryStorage: () => ModelStorage;
   getTemporaryStorage: () => ModelStorage;
+  history: {
+    push: (path: string) => void;
+  };
 }
 
 export class SideEffects extends Context.Tag('SideEffects')<

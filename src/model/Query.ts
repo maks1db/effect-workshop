@@ -6,28 +6,28 @@ export class QueryError extends Data.TaggedError('QueryError')<{
 }> {}
 
 interface QueryImpl {
-  get: (
+  get: <T>(
     route: string,
     headers?: Record<string, unknown>,
-  ) => Effect.Effect<unknown, QueryError, never>;
+  ) => Effect.Effect<T, QueryError, never>;
 }
 
-export class Query extends Context.Tag('Config')<Query, QueryImpl>() {
+export class Query extends Context.Tag('Query')<Query, QueryImpl>() {
   static readonly Live = Layer.effect(
     this,
     Effect.map(Config, config => ({
-      get: (route, headers) =>
+      get: (url, headers) =>
         Effect.tryPromise({
           try: () =>
-            fetch(`${config.host}/`, {
+            fetch(`${url}`, {
               method: 'get',
               headers: headers as any,
-            }),
+            }).then(x => x.json() as any),
           catch: () =>
             new QueryError({
-              message: `Не удалось выполнить запрос к ${route}`,
+              message: `Не удалось выполнить запрос к ${url}`,
             }),
-        }).pipe(Effect.map(x => x.json())),
+        }),
     })),
   );
 }
