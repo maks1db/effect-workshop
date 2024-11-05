@@ -1,10 +1,8 @@
-import { Effect, Layer } from 'effect';
-import { ClientIS, Cl, ClientISLive } from './model/ClientIS.js';
+import { Effect } from 'effect';
+import { ClientIS, ClientISLive } from './model/ClientIS.js';
 import { Parser } from './model/Parser.js';
 import { Storage } from './model/Storage.js';
 import { Events } from './model/Events.js';
-import { Random } from './model/Random.js';
-import { Query } from './model/Query.js';
 
 const program = Effect.flatMap(
   Effect.all([Events, Parser]),
@@ -26,9 +24,6 @@ const program = Effect.flatMap(
       }
 
       const params = yield* client.getISConfig();
-      yield* client
-        .getRedirectUrl()
-        .pipe(Effect.flatMap(storage.setRedirectUrl));
 
       const token = yield* storage.getToken();
       if (token) {
@@ -37,7 +32,11 @@ const program = Effect.flatMap(
           return token;
         }
       }
+      yield* client
+        .getRedirectUrl()
+        .pipe(Effect.flatMap(storage.setRedirectUrl));
       yield* client.authorize();
+
       return null;
     }).pipe(
       Effect.flatMap(token =>
@@ -63,7 +62,7 @@ const program = Effect.flatMap(
         },
         onFailure(error) {
           events.onProgramChangeState('error');
-          events.onError(error?.message || null);
+          events.onError(error.message);
         },
       }),
     ),
