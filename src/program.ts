@@ -1,78 +1,71 @@
-import { Effect } from 'effect';
-import { ClientIS, ClientISLive } from './model/ClientIS.js';
+/* eslint-disable consistent-return */
+import { Effect, identity } from 'effect';
+import { ClientIS } from './model/ClientIS.js';
 import { Parser } from './model/Parser.js';
 import { Storage } from './model/Storage.js';
 import { Events } from './model/Events.js';
+import { Url } from './model/Url.js';
+import { Random } from './model/Random.js';
+import { Query } from './model/Query.js';
 
-const program = Effect.flatMap(
-  Effect.all([Events, Parser]),
-  ([events, parser]) =>
-    Effect.gen(function* () {
-      events.onProgramChangeState('pending');
+const mainApp = Effect.gen(function* () {
+  const [client, storage, parser, url] = yield* Effect.all([
+    ClientIS,
+    Storage,
+    Parser,
+    Url,
+  ]);
+  const isSignIn = yield* url.isSignInUrl();
 
-      const [client, storage] = yield* Effect.all([ClientIS, Storage]);
-      const isSignIn = yield* client.isSignInUrl();
+  if (isSignIn) {
+    return yield* parser
+      .parseTokenFromHash()
+      .pipe(
+        Effect.tap(result =>
+          Effect.all([storage.saveToken(result), client.goToRedirectUrl()]),
+        ),
+      );
+  }
 
-      if (isSignIn) {
-        return yield* parser
-          .parseTokenFromHash()
-          .pipe(
-            Effect.tap(result =>
-              Effect.all([storage.saveToken(result), client.toRedirectUrl()]),
-            ),
-          );
-      }
+  const token = yield* storage.getToken();
+  if (token) {
+    const isValid = yield* client.isTokenValid(token);
 
-      const token = yield* storage.getToken();
-      if (token) {
-        const isValid = yield* client
-          .getISConfig()
-          .pipe(Effect.andThen(conf => client.isTokenValid(token, conf)));
+    if (isValid) {
+      return token;
+    }
+  }
 
-        if (isValid) {
-          return token;
-        }
-      }
-      yield* client
-        .getRedirectUrl()
-        .pipe(
-          Effect.andThen(storage.setRedirectUrl),
-          Effect.andThen(client.getISConfig),
-          Effect.andThen(client.authorize),
-        );
+  yield* storage.setRedirectUrl();
+  yield* client.authorize();
+});
 
-      return null;
-    }).pipe(
-      Effect.flatMap(token =>
-        Effect.gen(function* () {
-          if (token) {
-            const payload = yield* parser.parseTokenToPayload(token);
-            return {
-              token,
-              payload,
-            };
-          }
-          return null;
-        }),
-      ),
+const program = Effect.gen(function* () {
+  const [parser, events] = yield* Effect.all([Parser, Events]);
+  events.onProgramChangeState('pending');
 
-      Effect.match({
-        onSuccess(value) {
-          if (value) {
-            events.onProgramChangeState('success');
-            events.onParseToken(value.token, value.payload);
-          }
-        },
-        onFailure(error) {
-          events.onProgramChangeState('error');
-          events.onError(error.message);
-        },
-      }),
-    ),
-);
+  const token = yield* mainApp.pipe(
+    Effect.match({
+      onFailure: e => {
+        events.onError(e.message);
+        events.onProgramChangeState('error');
+      },
+      onSuccess: identity,
+    }),
+  );
+
+  if (token) {
+    const payload = yield* parser.parseTokenToPayload(token);
+    events.onParseToken(token, payload);
+    events.onProgramChangeState('success');
+  }
+});
 
 export const authProgram = program.pipe(
   Effect.provide(ClientIS.Live),
-  Effect.provide(ClientISLive),
   Effect.provide(Parser.Live),
+  Effect.provide(Storage.Live),
+  Effect.provide(Query.Live),
+  Effect.provide(Url.Live),
+  Effect.provide(Random.Live),
 );

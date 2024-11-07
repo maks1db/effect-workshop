@@ -2,22 +2,18 @@ import { useEffect, useState } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
-import { authProgram, runProgram, Config, Events, SideEffects } from '../../../src'
+import { authProgram } from './model'
 import { Effect } from 'effect'
-import * as constants from './constants'
+import { Events, runProgram } from '../../../src'
 
 function App() {
   const [isPending, setPending] = useState(false);
   const [error, setError] = useState<null | string>(null);
   const [token, setToken] = useState<string | null>(null)
-  // const [tokenPayload, setTokenPayload] = useState<string | null>(null)
+
   useEffect(()=>{
     const runnable = authProgram.pipe(
-      Effect.provideService(Config, {
-        client: constants.IS_APP,
-        host: constants.IS_HOST,
-        signInUri: constants.SIGN_IN
-      }),
+ 
       Effect.provideService(Events, {
         onError: setError,
         onParseToken: (token, payload) => {
@@ -28,14 +24,7 @@ function App() {
           setPending(state === 'pending')        
         }
       }),
-      Effect.provideService(SideEffects, {
-        getLocation: () => window.location,
-        getPrimaryStorage: () => window.sessionStorage,
-        getTemporaryStorage: () => window.sessionStorage,
-        history: {
-          push: (path) => window.history.pushState('', '', path)
-        }
-      })
+
     );
 
     return runProgram(runnable)

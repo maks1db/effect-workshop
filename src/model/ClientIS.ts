@@ -1,10 +1,13 @@
+/* eslint-disable class-methods-use-this */
 /* eslint-disable @typescript-eslint/naming-convention */
 import { Context, Data, Effect, Layer } from 'effect';
 import { Query } from './Query.js';
 import { SideEffects } from './SideEffects.js';
 import { Config } from './Config.js';
 import { Storage } from './Storage.js';
-import { Random } from './Random.js';
+import { RandomError } from './Random.js';
+import { ConfigurationType } from './types.js';
+import { Url } from './Url.js';
 
 export class ClientISError extends Data.TaggedError('ClientISError')<{
   message: string;
@@ -12,16 +15,10 @@ export class ClientISError extends Data.TaggedError('ClientISError')<{
 
 interface ClientISImpl {
   getISConfig: () => Effect.Effect<ConfigurationType, ClientISError, never>;
-  isSignInUrl: () => Effect.Effect<boolean, never, never>;
-  toRedirectUrl: () => Effect.Effect<void, never, never>;
-  authorize: (
-    config: ConfigurationType,
-  ) => Effect.Effect<void, RangeError, never>;
-  getRedirectUrl: () => Effect.Effect<string, never, never>;
-  isTokenValid: (
-    token: string,
-    config: ConfigurationType,
-  ) => Effect.Effect<boolean, never, never>;
+  authorize: () => Effect.Effect<void, RandomError | ClientISError, never>;
+  goToRedirectUrl: () => Effect.Effect<void, never, never>;
+
+  isTokenValid: (token: string) => Effect.Effect<boolean, never, never>;
 }
 
 export class ClientIS extends Context.Tag('ClientIS')<
@@ -31,83 +28,62 @@ export class ClientIS extends Context.Tag('ClientIS')<
   static readonly Live = Layer.effect(
     this,
     Effect.map(
-      Effect.all([Query, SideEffects, Config, Storage, Random]),
-      ([query, sideEffects, appConfig, storage, random]) => ({
-        getRedirectUrl() {
-          const loc = sideEffects.getLocation();
+      Effect.all([Query, SideEffects, Config, Storage, Url]),
+      ([query, sideEffects, appConfig, storage, url]) => {
+        class __ClientIS implements ClientISImpl {
+          goToRedirectUrl() {
+            return Effect.gen(function* () {
+              const redirectUrl = yield* storage.getRedirectUrl();
 
-          return Effect.succeed(`${loc.pathname}${loc.search}${loc.hash}`);
-        },
-        toRedirectUrl: () =>
-          Effect.gen(function* () {
-            const url = yield* storage.getRedirectUrl();
+              if (redirectUrl) {
+                sideEffects.history.push(redirectUrl);
+              }
+            });
+          }
 
-            if (url) {
-              sideEffects.history.push(url);
-            }
-          }),
-        authorize: config =>
-          Effect.gen(function* () {
-            const loc = sideEffects.getLocation();
-            const redirectUri = `${loc.origin}/${appConfig.signInUri}`;
-            const state = yield* random.get();
-            const nonce = yield* random.get();
+          authorize() {
+            return this.getISConfig().pipe(
+              Effect.andThen(url.getAuthorizeUrl),
+              Effect.andThen(authUrl => {
+                const loc = sideEffects.getLocation();
+                loc.href = authUrl;
+              }),
+            );
+          }
 
-            // eslint-disable-next-line max-len
-            const url = `${config.authorization_endpoint}?client_id=${appConfig.client}&redirect_uri=${redirectUri}&response_type=id_token token&scope=openid profile email&state=${state}&nonce=${nonce}`;
-            loc.href = url;
-          }),
-        isSignInUrl: () => {
-          return Effect.succeed(
-            sideEffects.getLocation().href.includes(appConfig.signInUri),
-          );
-        },
-        getISConfig: () =>
-          query
-            .get<ConfigurationType>(
-              `${appConfig.host}/.well-known/openid-configuration`,
-            )
-            .pipe(
-              Effect.mapError(
-                () =>
-                  new ClientISError({
-                    message: 'Не удалось получить конфигурацию IS',
-                  }),
+          getISConfig() {
+            return query
+              .get<ConfigurationType>(
+                `${appConfig.host}/.well-known/openid-configuration`,
+              )
+              .pipe(
+                Effect.mapError(
+                  () =>
+                    new ClientISError({
+                      message: 'Не удалось получить конфигурацию IS',
+                    }),
+                ),
+              );
+          }
+
+          isTokenValid(token: string) {
+            return this.getISConfig().pipe(
+              Effect.flatMap(configIS =>
+                query.get(configIS.userinfo_endpoint, {
+                  Authorization: `Bearer ${token}`,
+                }),
               ),
-            ),
-
-        isTokenValid(token, configIS) {
-          return query
-            .get(`${configIS.userinfo_endpoint}`, {
-              Authorization: `Bearer ${token}`,
-            })
-            .pipe(
               Effect.match({
                 onFailure: () => false,
                 onSuccess: () => true,
               }),
             );
-        },
-      }),
+          }
+        }
+
+        const client = new __ClientIS();
+        return client;
+      },
     ),
   );
 }
-
-export const ClientISLive = Layer.mergeAll(
-  Storage.Live,
-  Query.Live,
-  Random.Live,
-);
-
-export type ConfigurationType = {
-  issuer: string;
-  jwks_uri: string;
-  authorization_endpoint: string;
-  token_endpoint: string;
-  userinfo_endpoint: string;
-  end_session_endpoint: string;
-  check_session_iframe: string;
-  revocation_endpoint: string;
-  introspection_endpoint: string;
-  device_authorization_endpoint: string;
-};
