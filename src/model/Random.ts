@@ -2,18 +2,14 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable no-bitwise */
 
-import { Context, Data, Effect, Layer } from 'effect';
+import { Data, Effect } from 'effect';
 
 export class RandomError extends Data.TaggedError('RandomError')<{
   message: string;
 }> {}
 
-interface RandomImpl {
-  get: () => Effect.Effect<string, RandomError, never>;
-}
-
-export class Random extends Context.Tag('Random')<Random, RandomImpl>() {
-  static readonly Live = Layer.succeed(this, {
+export class Random extends Effect.Service<Random>()('Random', {
+  succeed: {
     get() {
       return Effect.try({
         try: () => {
@@ -29,8 +25,12 @@ export class Random extends Context.Tag('Random')<Random, RandomImpl>() {
           }),
       });
     },
-  });
-}
+  },
+}) {}
+
+// export class Random1 extends Context.Tag('Random')<Random, RandomImpl>() {
+//   static readonly Live = Layer.succeed(this);
+// }
 
 function _cryptoUuidv4() {
   // @ts-ignore

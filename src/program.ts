@@ -6,7 +6,6 @@ import { Storage } from './model/Storage.js';
 import { Events } from './model/Events.js';
 import { Url } from './model/Url.js';
 import { Random } from './model/Random.js';
-import { Query } from './model/Query.js';
 
 const mainApp = Effect.gen(function* () {
   const [client, storage, parser, url] = yield* Effect.all([
@@ -62,10 +61,9 @@ const program = Effect.gen(function* () {
 });
 
 export const authProgram = program.pipe(
-  Effect.provide(ClientIS.Live),
-  Effect.provide(Parser.Live),
-  Effect.provide(Storage.Live),
-  Effect.provide(Query.Live),
-  Effect.provide(Url.Live),
-  Effect.provide(Random.Live),
+  Effect.provide(ClientIS.Default),
+  Effect.provide(Parser.Default),
+  Effect.provide(Storage.Default),
+  Effect.provide(Url.Default),
+  Effect.provide(Random.Default),
 );

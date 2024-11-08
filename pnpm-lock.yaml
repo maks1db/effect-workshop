@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       effect:
-        specifier: ~3.10.10
-        version: 3.10.10
+        specifier: ~3.10.12
+        version: 3.10.12
       ramda:
         specifier: ~0.30.1
         version: 0.30.1
@@ -964,8 +964,8 @@ packages:
   eastasianwidth@0.2.0:
     resolution: {integrity: sha512-I88TYZWc9XiYHRQ4/3c5rjjfgkjhLyW2luGIheGERbNQ6OY7yTybanSpDXZa8y7VUP9YmDcYa+eyq4ca7iLqWA==}
 
-  effect@3.10.10:
-    resolution: {integrity: sha512-Kwu6PbhTyn/03Njw9A1FFq/vXlYLpPhE6YR8BLEMLABtH5Ta6yFAJCNUwnnDXg+T/SogBlZLavtiAeS3tYS2mQ==}
+  effect@3.10.12:
+    resolution: {integrity: sha512-+IqqTQS5+jM13qZHzfAX+RpCGOl0oBWIR7nec/zq76HyN/hdGQYnfr/LLLOVxUt8uIbckBea8rkwBKrQ0Hb/aA==}
 
   emoji-regex@8.0.0:
     resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==}
@@ -2811,7 +2811,7 @@ snapshots:
 
   eastasianwidth@0.2.0: {}
 
-  effect@3.10.10:
+  effect@3.10.12:
     dependencies:
       fast-check: 3.23.1
 
