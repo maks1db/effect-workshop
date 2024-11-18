@@ -61,9 +61,12 @@ const program = Effect.gen(function* () {
 });
 
 export const authProgram = program.pipe(
-  Effect.provide(ClientIS.Default),
-  Effect.provide(Parser.Default),
-  Effect.provide(Storage.Default),
+  Effect.provide([
+    ClientIS.Default,
+    Parser.Default,
+    Storage.Default,
+
+    Random.Default,
+  ]),
   Effect.provide(Url.Default),
-  Effect.provide(Random.Default),
 );
